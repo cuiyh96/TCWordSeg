@@ -14,34 +14,34 @@ if project_root not in sys.path:
 from datasketch import MinHash
 from tcwordseg.TCWordSeg3 import TCWordSeg3
 
-sys.path.append(r"/LLM_data/common_util/")
 # 自定义函数
-from public import read_jsonl, setDir
-from divide_data import divide_worker
-from get_ids import get_sft_txt
+from divide import divide_worker
+from corpus.sft import SFTDataProcessor
+from base.file_io import FileIO
 
 # --------------------------------------------------
-ecd_set = 'utf-8'
 
 def load_data(file_path):
     with open(file_path, 'r', encoding='utf-8') as f:
         data = [json.loads(line) for line in f]
     return data
 
-def perprocess_calculate_hashvalue(data, start_line, end_line, process_i):
+def perprocess_calculate_hashvalue(data, start_line, end_line, process_i, data_fmt, num_perm):
     """
     定义每个进程的工作函数，用于读取文件、分词和生成MinHash值，并将结果保存到第i个文件中
     :param data: 全量数据
     :param start_line: 当前进程处理的数据，对应索引开始位置
     :param end_line:   当前进程处理的数据，对应索引结束位置
     :param process_i: 第i个进程
+    :param data_fmt: 数据格式 s1/s2
+    :param num_perm: MinHash 哈希函数个数
     :return:
     """
     seginst = TCWordSeg3() # 创建一个分词实例
     hHandle = seginst.seghandle  # 获取分词句柄
     hashvalues_array=np.array([])
     for dic in data[start_line:end_line]:
-        line = get_sft_txt(dic, args.data_fmt)
+        line = SFTDataProcessor.get_sft_txt(dic, data_fmt)
         if line == '':
             print('SFT数据为空，请检查对应的数据格式“s1/s2”是否正确！')
             break
@@ -52,7 +52,7 @@ def perprocess_calculate_hashvalue(data, start_line, end_line, process_i):
         # 按指定索引位置，获取分词结果
         seg_text = [seginst.TCGetWord(hHandle, i).encode('utf-8') for i in range(rescount)]
         # 计算哈希值
-        minhash = MinHash(num_perm = args.num_perm) # 创建 MinHash 对象
+        minhash = MinHash(num_perm = num_perm) # 创建 MinHash 对象
         minhash.update_batch(seg_text) # 更新 MinHash 对象
         hashvalues_array = np.concatenate((hashvalues_array, minhash.hashvalues))
     # 保存哈希值
@@ -61,7 +61,7 @@ def perprocess_calculate_hashvalue(data, start_line, end_line, process_i):
     del seginst # 销毁实例
 
 # 主函数，用于创建工作进程并汇总结果  
-def calculate_hashvalues(file_path, output_file_path, num_processes):
+def calculate_hashvalues(file_path, output_file_path, num_processes, data_fmt, num_perm):
     data = load_data(file_path)
     total_num = len(data)
     # 数据划分，划分后 num_processes=len(chunks)
@@ -72,7 +72,7 @@ def calculate_hashvalues(file_path, output_file_path, num_processes):
     processes = [] # 进程池
     for i, (start_line, end_line) in enumerate(chunks):
         process = multiprocessing.Process(target=perprocess_calculate_hashvalue,
-                                          args=(data, start_line, end_line, i))
+                                          args=(data, start_line, end_line, i, data_fmt, num_perm))
         processes.append(process)
         process.start()
 
@@ -88,7 +88,7 @@ def calculate_hashvalues(file_path, output_file_path, num_processes):
         hashvalues_i = np.load(pathf)
         hashvalues_array = np.concatenate((hashvalues_array, hashvalues_i))
     # 汇总的hashvalues
-    hashvalues_array = hashvalues_array.reshape(-1, args.num_perm)
+    hashvalues_array = hashvalues_array.reshape(-1, num_perm)
     # 保存汇总的hashvalues
     np.save(output_file_path, hashvalues_array)
 
@@ -98,9 +98,9 @@ def get_parser():
                         default='/cuiyah/Projects/TCWordSeg/data_test/test_data.jsonl')
     parser.add_argument("--output_path", type=str, help="输出目录路径",
                         default=None)
-    parser.add_argument("--num_perm", type=float, help="指定Minhash生成num_perm个哈希函数", default=128)
+    parser.add_argument("--num_perm", type=int, help="指定Minhash生成num_perm个哈希函数", default=128)
     parser.add_argument("--data_fmt", type=str, help="数据格式是s1还是s2", default='s2')
-    parser.add_argument("--num_processes", type=str, help="指定的进程数", default=5)
+    parser.add_argument("--num_processes", type=int, help="指定的进程数", default=5)
     return parser
 
 if __name__ == '__main__':
@@ -108,19 +108,19 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     # 准备工作
-    setDir('./tmp', type=1) # 清空临时文件夹，用于保存中间计算结果
+    FileIO.ensure_dir('./tmp', clear=True) # 清空临时文件夹，用于保存中间计算结果
     TCWordSeg3.initconf("data")  #词典资源仅需加载一次
     num_processes = min(args.num_processes, multiprocessing.cpu_count())
     if args.output_path is None:
         path_m = os.path.splitext(args.input_path)[0] + '_result'
-        setDir(path_m, type=1)
+        FileIO.ensure_dir(path_m, clear=True)
         output_file_path = os.path.join(path_m, 'hashvalues.npy')
     else:
         output_file_path = args.output_path
 
     # 开始计算哈希值
     start = time.time()
-    calculate_hashvalues(args.input_path, output_file_path, num_processes)
+    calculate_hashvalues(args.input_path, output_file_path, num_processes, args.data_fmt, args.num_perm)
     end = time.time()
     print("Total time = %f minutes." % ((end - start) / 60))
 

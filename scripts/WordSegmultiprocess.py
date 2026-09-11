@@ -1,12 +1,10 @@
 #coding=utf-8
 
-import os, time, json, re, multiprocessing, threading 
+import os, time, json, multiprocessing, argparse
 from tcwordseg.TCWordSeg3 import TCWordSeg3
 
 ecd_set = 'gb18030'
 #ecd_set = 'utf-8'
-
-wordseginst = None
 
 # 定义进程工作函数，用于读取文件、分词和生成MinHash值，并将结果保存到单独的文件中  
 def process_file_chunk(file_path, start_line, end_line, pid, titleloc, contloc):  
@@ -34,7 +32,6 @@ def process_file_chunk(file_path, start_line, end_line, pid, titleloc, contloc):
             #seginst.TCSegment(seginst.seghandle, line)
             #rescount = seginst.TCGetResultCnt(seginst.seghandle)  #获得粗粒度
             #segout = ' '.join((seginst.TCGetWord(seginst.seghandle, i) for i in range(rescount)))
-            segout = seginst.TCSegOut(seginst.seghandle, line)
             linejson = json.dumps({"title": line.split('\t')[0].replace('\\n','\n'), "content": line.split('\t')[1].replace('\\n','\n')}, ensure_ascii=False)
 
             fpw.write(linejson +'\n')
@@ -99,8 +96,19 @@ def iterate_through_directory(dir_path, output_path):
                 multiSeg(os.path.join(dir_path, file), os.path.join(output_path, file), titleloc, contloc)
     #print(num)
     
+def get_parser():
+    parser = argparse.ArgumentParser(description="批量中文分词（多进程）")
+    parser.add_argument("--filelist", type=str, help="文件清单路径（每行：文件名\\t标题列号\\t内容列号）",
+                        default='filelist1.txt')
+    parser.add_argument("--dir_path", type=str, help="输入目录（或文件）路径", required=True)
+    parser.add_argument("--output_path", type=str, help="输出目录路径", required=True)
+    return parser
+
+
 if __name__ == '__main__':
-    filelist = open("filelist1.txt", "r", encoding=ecd_set )
+    args = get_parser().parse_args()
+
+    filelist = open(args.filelist, "r", encoding=ecd_set )
     for filenames in filelist:
         namelist = filenames.strip().split('\t')
         if filenames[0] == '#':
@@ -110,15 +118,8 @@ if __name__ == '__main__':
         contloc = int(namelist[2])
         mapfile[filename] = (titleloc, contloc)
     filelist.close()
-    dir_path = 'c:/data/data/' # 替换为你的目录路径d
-    output_path = 'c:/data/temp/' # 替换为你的输出文件路径
-    #TCWordSeg3.initconf("data") #词典资源仅需加载一次
-    #wordseginst = TCWordSeg3() #可创建多个实例
     begin = time.time()
-    iterate_through_directory(dir_path, output_path)
+    iterate_through_directory(args.dir_path, args.output_path)
     end = time.time()
     print("total time = %f m" %((end-begin)/60))
-    #del wordseginst    
-    #TCWordSeg3.uninitconf() #仅需加卸载一次
-    
  

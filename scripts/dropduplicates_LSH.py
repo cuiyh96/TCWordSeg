@@ -57,10 +57,6 @@ def get_parser():
                         default='/cuiyah/Projects/TCWordSeg/data_test/test_data.jsonl')
     parser.add_argument("--hashvalues_path", type=str, help="数据对应的哈希值文件路径",
                         default=None)
-    parser.add_argument("--save_file", type=str, help="去重后文件名", default='test_data_deduplicate.jsonl')
-    parser.add_argument("--dedup_file", type=str, help="重复文件名", default='test_data_duplicate.jsonl')
-    parser.add_argument("--dedup_info_file", type=str, help="去重信息文件名",
-                        default='fin_ebook_qa_filtered_dedup_info.jsonl')
     parser.add_argument("--threshold", type=float, help="去重算法阈值", default=0.95)
     return parser
 

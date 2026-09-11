@@ -29,7 +29,7 @@ TCWordSeg/
 ├── scripts/                      # 应用脚本
 │   ├── WordSegmultiprocess.py    # 多进程分词工具
 │   ├── calculate_hashvalues.py   # MinHash 签名计算（文件输入）
-│   ├── calculate_hashvalues_db.py # MinHash 签名计算（MongoDB 输入）
+│   ├── calculate_hashvalues_db.py # MinHash 签名计算（文件输入 + id 映射落地）
 │   └── dropduplicates_LSH.py    # LSH 近似去重
 ├── tests/                        # 测试
 │   └── data_test/                # 测试 notebook
@@ -86,17 +86,18 @@ TCWordSeg3.uninitconf()
 **Step 1：计算 MinHash 签名**
 
 ```bash
-# 从文件读取数据
+# 从文件读取数据，输出仅含 hashvalues
 python scripts/calculate_hashvalues.py \
     --input_path data.jsonl \
     --num_perm 128 \
     --data_fmt s2 \
     --num_processes 10
 
-# 从 MongoDB 读取数据
+# 从文件读取数据，额外落地 id 与哈希值的映射文件
 python scripts/calculate_hashvalues_db.py \
-    --read_data_name std_sft_collect_baichuan_49997_cn_s2 \
+    --input_path data.jsonl \
     --num_perm 128 \
+    --data_fmt s2 \
     --num_processes 32
 ```
 
@@ -111,7 +112,9 @@ python scripts/dropduplicates_LSH.py \
 **Step 3：多进程批量分词**
 
 ```bash
-python scripts/WordSegmultiprocess.py
+python scripts/WordSegmultiprocess.py \
+    --dir_path c:/data/data/ \
+    --output_path c:/data/temp/
 ```
 
 ## 数据格式
@@ -129,11 +132,10 @@ python scripts/WordSegmultiprocess.py
 
 ## Python 依赖
 
-| 包名         | 用途                                         |
-| ---------- | ------------------------------------------ |
-| numpy      | 哈希值数组计算与存储                                 |
-| datasketch | MinHash 签名与 LSH 近似去重                       |
-| jsonlines  | JSONL 格式读写                                 |
-| pymongo    | MongoDB 数据读写（calculate\_hashvalues\_db.py） |
-| tqdm       | 进度条显示                                      |
+| 包名         | 用途                          |
+| ---------- | --------------------------- |
+| numpy      | 哈希值数组计算与存储                  |
+| datasketch | MinHash 签名与 LSH 近似去重        |
+| jsonlines  | JSONL 格式读写                  |
+| tqdm       | 进度条显示                       |
 
