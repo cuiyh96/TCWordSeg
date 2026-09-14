@@ -1,0 +1,9 @@
+# Python
+__pycache__/
+*.py[cod]
+!*.pyd
+.pytest_cache/
+
+# 运行产物
+output/
+*_result/
